@@ -8,8 +8,11 @@ If ($PSVersionTable.PSVersion.Major -lt 3) {
     "The script requires PowerShell version 3.0 or above"
     Break
 }
-If (!(Get-WindowsFeature FS-DFS-Replication).Installed) {
-    "DFS Replication role not installed"
+If (!(Get-WindowsFeature FS-DFS-Replication).Installed) { 
+   $Data = @{ "{#MSG}"= "DFS Replication role not installed"}
+   @{
+    "data" = $Data
+} | ConvertTo-Json
     Break
 }
 
