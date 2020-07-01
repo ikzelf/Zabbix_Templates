@@ -1,7 +1,7 @@
-﻿Param(
-    #Объект мониторинга, для которого будем возвращать метрики
+Param(
+    #An object for which we return the metrics
     [parameter(Mandatory=$true, Position=0)][String]$Object,
-    #Дополнительные параметры, на основании которых будет возвращать метрики для объекта
+    #Additional parameters that will be used to return metrics for the object
     [parameter(Mandatory=$false, Position=1)]$Param1,
     [parameter(Mandatory=$false, Position=2)]$Param2
 )
@@ -10,17 +10,17 @@ Set-Variable DFSNamespace -Option ReadOnly -Value "root\MicrosoftDfs" -ErrorActi
 
 Set-Variable RoleNotInstalledText -Option ReadOnly -Value "DFS Replication role not installed" -ErrorAction Ignore
 
-#Параметры локализации (чтобы разделителем целой и дробной части была точка, т.к. запятую заббикс не поймет)
+#Localization parameters (so that the decimal separator is a dot, because Zabbix will not understand the comma)
 $USCulture = [System.Globalization.CultureInfo]::GetCultureInfo("en-US")
 [System.Threading.Thread]::CurrentThread.CurrentCulture = $USCulture
 
 <#
-    #Тайм-аут для получения значения (должен быть меньше таймаута в настройках заббикс-агента)
-    С помощью этого параметра ограничиваем время опроса партнеров:
-    Учитывая, что обычно опрос недоступного партнера занимает до 20с,
-    а Timeout для заббикс-агента обычно меньше (3с по умолчанию),
-    мы ограничиваем время опроса в самом скрипте, чтобы заббикс-агент не получил NoData из-за таймаута
-    Это позволит вместо NoData вернуть значение, либо текст ошибки
+	#Timeout to get the value (must be less than the timeout in the Zabbix agent settings)
+	Using this parameter, we limit the time of the partner queries:
+	Considering that it usually takes up to 20 seconds to query an unavailable partner,
+	and the timeout for the Zabbix agent is usually less (3s by default),
+	we limit the polling time in the script itself so that the Zabbix agent doesn't get NoData due to a timeout
+	This allows you to return the value or error text instead of NoData
 #>
 Set-Variable RequestTimeout -Option ReadOnly -Value 2 -ErrorAction Ignore
 
@@ -44,12 +44,12 @@ Switch($Object) {
                 (Get-WmiObject -Namespace $DFSNamespace -Class DfsrInfo).State
             }
             Else {
-                #Если служба остановлена
+                #If the service is stopped
                 [int]100
             }
         }
         Else {
-            #Если служба не найдена
+            #If the service is not found
             [int]101
         }
     }
@@ -94,9 +94,9 @@ Switch($Object) {
         }
         $DFSRInfo = Get-WmiObject -Namespace $DFSNamespace -Class DfsrInfo -ErrorAction Ignore
         If ($DFSRInfo) {
-            #Получаем время запуска службы в WMI-формате
+            #Get the start time of the service in WMA format
             $WMIStartTime = $DFSRInfo.ServiceStartTime
-            #и преобразуем его в формат DateTime
+            #and convert it to DateTime format
             $StartTime = [Management.ManagementDateTimeConverter]::ToDateTime($WMIStartTime)
             (New-TimeSpan -Start $StartTime -End (Get-Date)).TotalSeconds
         }
@@ -105,7 +105,7 @@ Switch($Object) {
         }
     }
 
-    #Реплицируемая папка
+    #Replicated folder
     "RF" {
         If (!$DFSRRoleInstalled) {
             $RoleNotInstalledText
@@ -120,7 +120,7 @@ Switch($Object) {
         }
         $RFName = $RFConfig.ReplicatedFolderName
         $RGID = $RFConfig.ReplicationGroupGuid
-        #Статистику можно собирать только с Enabled-папок
+        #Statistics can only be collected from Enabled folders
         If ($RFConfig.Enabled) {
             $WMIQuery = "SELECT * FROM DfsrReplicatedFolderInfo WHERE ReplicatedFolderGuid='$RFID'"
             $RFInfo = Get-WmiObject -Namespace $DFSNamespace -Query $WMIQuery
@@ -129,22 +129,22 @@ Switch($Object) {
         
         Switch($Param2) {
             "Enabled" {
-            #Включена ли репликация для папки
+            #Whether replication is enabled for the folder
                 $RFConfig.Enabled
             }
-            #Удалять файлы вместо перемещения в папку конфликтов
+            #Delete files instead of moving to the conflict folder
             "RemoveDeleted" {
                 $RFConfig.DisableSaveDeletes
             }
             "ReadOnly" {
-            #Папка работает в режиме "только чтение"
+            #The folder is in read-only mode"
                 $RFConfig.ReadOnly
             }
-            #Максимальный размер, заданный для промежуточной папки, байт
+            #Maximum size set for the intermediate folder, bytes
             "StageQuota" {
                 $RFConfig.StagingSizeInMb*1024*1024
             }
-            #Максимальный размер, заданный для папки ConflictAndDeleted, байт
+            #Maximum size set for the ConflictAndDeleted folder, bytes
             "ConflictQuota" {
                 $RFConfig.ConflictSizeInMb*1024*1024
             }
@@ -158,7 +158,7 @@ Switch($Object) {
                     "Couldn't retrieve info for disabled RF"
                 }
             }
-            #Текущий размер промежуточной папки, байт
+            #Current size of the intermediate folder, bytes
             "StageSize" {
                 If ($RFInfo) {
                     $RFInfo.CurrentStageSizeInMb*1024*1024
@@ -167,7 +167,7 @@ Switch($Object) {
                     "Couldn't retrieve info for disabled RF"
                 }
             }
-            #% свободного места в промежуточной папке
+            #% free space in the intermediate folder
             "StagePFree" {
                 If ($RFInfo) {
                     ($RFConfig.StagingSizeInMb - $RFInfo.CurrentStageSizeInMb)/ `
@@ -177,7 +177,7 @@ Switch($Object) {
                     $ErrorText
                 }
             }
-            #Текущий размер папки ConflictAndDeleted, байт
+            #Current size of the ConflictAndDeleted folder, bytes
             "ConflictSize" {
                 If ($RFInfo) {
                     $RFInfo.CurrentConflictSizeInMb*1024*1024
@@ -186,7 +186,7 @@ Switch($Object) {
                     $ErrorText
                 }
             }
-            #% свободного места в папке ConflictAndDeleted
+            #% free space in the ConflictAndDeleted folder
             "ConflictPFree" {
                 If ($RFInfo) {
                     ($RFConfig.ConflictSizeInMb - $RFInfo.CurrentConflictSizeInMb)/ `
@@ -196,19 +196,19 @@ Switch($Object) {
                     $ErrorText
                 }
             }
-            #На скольких партнерах имеется копия папки в рабочем состоянии
+            #How many partners have a copy of the folder in working order
             "Redundancy" {
-                #Находим партнеров по группе репликации
+                #Finding partners for the replication group
                 $WMIQuery = "SELECT * FROM DfsrConnectionConfig WHERE ReplicationGroupGuid='$RGID'"
                 $PartnersByGroup = (Get-WmiObject `
                     -Namespace $DFSNamespace `
                     -Query $WMIQuery).PartnerName | Select-Object -Unique
                 $n = 0
-                #Проверяем наличие папки, имеющей состояние 'Normal' (4), на каждом из партнеров
+                #Check for a folder with the 'Normal' (4) state on each of the partners
                 ForEach ($Partner in $PartnersByGroup) {
                     $WMIQuery = "SELECT * FROM DfsrReplicatedFolderInfo " +
                         "WHERE ReplicatedFolderGuid='$RFID' AND State=4"
-                    #и подсчитываем общее количество таких папок
+                    #and counting the total number of such folders
                     $j = Get-WmiObject -ComputerName $Partner `
                                        -Namespace $DFSNamespace `
                                        -Query $WMIQuery `
@@ -217,14 +217,14 @@ Switch($Object) {
                     If ($j.State -eq "Completed") {
                         $n += @(Receive-Job $j).Count
                     }
-                    #Если не можем опросить хотя одного партнера, прекращаем опрос и возвращаем ошибку
+                    #If we can't interview at least one node, we stop the queries and return an error
                     Else {
                         $n = -1
                         "Couldn't retrieve info from partner '$Partner'"
                         Break
                     }
                 }
-                #Если всё хорошо, возвращаем количество партнеров, хранящих копию папки
+                #If everything is fine, we return the number of partners who store a copy of the folder
                 If ($n -ge 0) {
                     $n
                 }
@@ -245,7 +245,7 @@ Switch($Object) {
             "RF '$RFID' not found"
             Break
         }
-        #Находим имя принимающего партнера по ID
+        #Finding the name of the receiving partner by ID
         $WMIQuery = "SELECT * FROM DfsrConnectionConfig WHERE PartnerGuid='$RServerID' AND Inbound='False'"
         $ConnectionConfig = Get-WmiObject -Namespace $DFSNamespace -Query $WMIQuery
         If (!$ConnectionConfig) {
@@ -253,9 +253,9 @@ Switch($Object) {
             Break
         }
         $RServerName = $ConnectionConfig.PartnerName
-        #Зная ID папки, находим ее имя и имя группы, которой она принадлежит
+        #Knowing the folder ID, we find its name and the name of the group that it belongs to
         $WMIQuery = "SELECT * FROM DfsrReplicatedFolderInfo WHERE ReplicatedFolderGuid='$RFID'"
-        #Запрашиваем у принимающего партнера информацию о папке
+        #Requesting information about the folder from the receiving partner
         $j = Get-WmiObject -ComputerName $RServerName `
                            -Namespace $DFSNamespace `
                            -Query $WMIQuery `
@@ -263,9 +263,9 @@ Switch($Object) {
         [void](Wait-Job $j -Timeout $RequestTimeout)
         If ($j.State -eq "Completed") {
             Try {
-                #и пытаемся извлечь с этого партнера вектор версии
+                #and trying to retrieve with this partner vector version
                 $VersionVector = (Receive-Job $j).GetVersionVector().VersionVector
-                #На отправляющем партнере (т.е. на локальном сервере) определяем размер бэклога для найденного вектора
+                #On the sending partner (i.e. on the local server), we determine the size of the backlog for the found vector
                 (Get-WmiObject `
                     -Namespace $DFSNamespace `
                     -Query $WMIQuery).GetOutboundBacklogFileCount($VersionVector).BacklogFileCount
@@ -301,7 +301,7 @@ Switch($Object) {
                 $ConnectionConfig.Enabled
             }
             "State" {
-                #Статистику можно получить только с enabled-подключений
+                #Statistics can only be obtained from enabled connections
                 If ($ConnectionConfig.Enabled) {
                     $WMIQuery = "SELECT * FROM DfsrConnectionInfo WHERE ConnectionGuid='$ConnectionID'"
                     $ConnectionInfo = Get-WmiObject -Namespace $DFSNamespace -Query $WMIQuery
@@ -317,13 +317,13 @@ Switch($Object) {
                     "Coundn't retrieve info for disabled connection"
                 }
             }
-            #Если репликация полностью выключена по расписанию
+            #If replication is completely disabled on a schedule
             "BlankSchedule" {
                 [Int]$s = 0
                 $ConnectionConfig.Schedule | ForEach-Object {
                     $s += $_
                 }
-                #Если репликация отключена для каждого часа каждого дня, возвращаем True
+                #If replication is disabled for every hour of every day, return True
                 [Boolean]($s -eq 0)
             }
         }
@@ -343,22 +343,22 @@ Switch($Object) {
             Break
         }
         Switch($Param2) {
-            #количество папок в группе
+            #number of folders in the group
             "RFCount" {
                 $WMIQuery = "SELECT * FROM DfsrReplicatedFolderConfig WHERE ReplicationGroupGuid='$RGID'"
                 @(Get-WmiObject -Namespace $DFSNamespace -Query $WMIQuery).Count
             }
-            #количество входящих подключений (в т.ч. disabled) от партнеров группы
+            #number of incoming connections (including disabled) from the group's partners
             "InConCount" {
                 $WMIQuery = "SELECT * FROM DfsrConnectionConfig WHERE ReplicationGroupGuid='$RGID' AND Inbound='True'"
                 @(Get-WmiObject -Namespace $DFSNamespace -Query $WMIQuery).Count
             }
-            #количество исходящих подключений (в т.ч. disabled) от партнеров группы
+            #number of outgoing connections (including disabled) from the group's partners
             "OutConCount" {
                 $WMIQuery = "SELECT * FROM DfsrConnectionConfig WHERE ReplicationGroupGuid='$RGID' AND Inbound='False'"
                 @(Get-WmiObject -Namespace $DFSNamespace -Query $WMIQuery).Count
             }
-            #Если в дефолтном расписании для группы репликация полностью выключена
+            #If replication is completely disabled for a group in the default schedule
             "BlankSchedule" {
                 $WMIQuery = "SELECT * FROM DfsrReplicationGroupConfig WHERE ReplicationGroupGuid='$RGID'"
                 $RGConfig = Get-WmiObject -Namespace $DFSNamespace -Query $WMIQuery
@@ -374,7 +374,7 @@ Switch($Object) {
         }
     }
 
-    #Количество групп репликации, в которые входит сервер
+    #Number of replication groups that the server belongs to
     "RGCount" {
         If (!$DFSRRoleInstalled) {
             $RoleNotInstalledText
@@ -446,19 +446,19 @@ Switch($Object) {
         Try {
             [String]$TimeSpanAsString = $Param2
             $EndTime = Get-Date
-            #Коэффициент для перевода из исходных единиц измерения в секунды
+            #Factor to convert from original units of measure in seconds
             $Multiplier = 1
-            #Определяем единицы измерения (смотрим последний символ в полученной строке)
+            #Defining units of measurement (look at the last character in the resulting string)
             $TimeUnits = $TimeSpanAsString[$TimeSpanAsString.Length-1]
-            #Если единицы не указаны (на конце цифра),
+            #If units are not specified (at the end of the number),
             If ($TimeUnits -match "\d") {
-                #считаем, что получили значение в секундах
+                #we think we got the value in seconds
                 $TimeValue = ($TimeSpanAsString -as [Int])
             }
             Else {
-                #Числовое значение получаем, отбросив последний символ строки
+                #We get the numeric value by dropping the last character of the string
                 $TimeValue = ($TimeSpanAsString.Substring(0, $TimeSpanAsString.Length - 1) -as [Int])
-                #Переводим из исходных единиц измерения в секунды
+                #Converting from the original units of measurement to seconds
                 Switch ($TimeUnits) {
                     "m" {$Multiplier = 60} #минуты
                     "h" {$Multiplier = 3600} #часы
